@@ -45,7 +45,22 @@ Execute script from the command line:
 php archive.php
 ```
 
-You will be asked about URL to directory listing. Just paste one. Files will be downloaded, many messages will be put on the screen. 
+You will be asked about URL to directory listing. Just paste one. Files will be downloaded, many messages will be put on the screen. You can also paste path to local directory or path to single file. In case of local directory script will search recursively for all ZIP files and process them.
+
+Another method is to use URL as an argument to archive.php:
+```
+php archive.php https://www.example.com/wp-content/plugins/
+php archive.php c:\mylocal_directory\
+php archive.php /tmp/my_plugin.zip
+```
+
+Theoretically it is possible to call `archive.php` from the browser with `url` parameter like that:
+
+```
+https://www.example.com/archive.php?url=https://www.example.com/wp-content/plugins/
+```
+
+...but I have never tested it. I implemented it "just in case" but never needed to check it.
 
 ## Plugins saved but not processed
 

@@ -1,15 +1,38 @@
 <?php
 
-$downloads_folder = 'downloads'; // folder where the ZIP files will be downloaded
-$unknowns_folder = 'not-recognized'; // folder for plugins that are not recognized by the script
-$bundles_folder = 'not-recognized/bundles'; // folder for plugin bundles that are not recognized by the script
-$search_window_length = 4000; // number of characters to search for the plugin name in the ZIP file
+require 'config.php';
 
 if (php_sapi_name() == 'cli') {
-    echo "Enter URL of the directory listing: ";
-    $url = trim(fgets(STDIN));
+    if (count($argv) == 2) {
+        $url = $argv[1];
+    } else {
+        echo "Enter URL of the directory listing: ";
+        $url = trim(fgets(STDIN));
+    }
 } else {
     $url = $_GET['url'];
+}
+
+if (is_dir($url)) {
+    // recursively scan the directory for ZIP files
+    $zip_files = array();
+    $directory_iterator = new RecursiveDirectoryIterator($url);
+    $iterator = new RecursiveIteratorIterator($directory_iterator);
+    foreach ($iterator as $file) {
+        if (preg_match('/\.zip$/', $file)) {
+            $zip_files[] = $file->getPathname();
+        }
+    }
+    
+    $direct_zip_links = $zip_files;
+    goto process_direct_zip_links;
+
+} else if (is_file($url)) {
+    // if url is not a directory, assume it is a ZIP file
+    $zip_files = array(realpath($url));
+
+    $direct_zip_links = $zip_files;
+    goto process_direct_zip_links;
 }
 
 // if url contains query parameters, remove them
@@ -99,56 +122,9 @@ if ($zip_link_type == URL_DIRECT) {
     }
 }
 
-function unzip_in_memory($data, $filter_function = null) {
-    $sectors = explode("\x50\x4b\x01\x02", $data);
-    array_pop($sectors);
-    $files = explode("\x50\x4b\x03\x04", implode("\x50\x4b\x01\x02", $sectors));
-    array_shift($files);
+process_direct_zip_links:
 
-    $result = array();
-    foreach($files as $file) {
-        $header = unpack("vversion/vflag/vmethod/vmodification_time/vmodification_date/Vcrc/Vcompressed_size/Vuncompressed_size/vfilename_length/vextrafield_length", $file);
-        $header['filename'] = substr($file, 26, $header['filename_length']);
-        if ($filter_function) {
-            if (!$filter_function($header['filename'])) {
-                continue;
-            }
-        }
-        // is it a directory?
-        $header['is_dir'] = substr($header['filename'], -1) == '/' ? true : false;
-        if ($header['is_dir']) {
-            $content = null;
-        } else {
-            if ($header['method'] == 8) {
-                $content = @gzinflate(substr($file, 26 + $header['filename_length'] + $header['extrafield_length'], $header['compressed_size']));
-                if ($content === false) {
-                    echo "Trying to skip additional header fields: " . $header['filename'] . PHP_EOL;
-                    $content = gzinflate(substr($file, 26 + $header['filename_length'] + $header['extrafield_length'], -12));
-                    if ($content === false) {
-                        echo "Failure!" . PHP_EOL;
-                    } else {
-                        echo "Success!" . PHP_EOL;
-                    }
-                }
-            } else {
-                $content = substr($file, 26 + $header['filename_length'] + $header['extrafield_length'], $header['uncompressed_size']);
-            }
-        }
-
-        if ($content === false) {
-            echo "Error: " . $header['filename'] . PHP_EOL;
-            echo "Method: " . $header['method'] . PHP_EOL;
-        }
-
-        array_push($result, [
-            'filename' => $header['filename'],
-            'is_dir' => $header['is_dir'],
-            'content' => $content,
-        ]);
-    }
-    
-    return $result;
-}
+require 'unzip.php';
 
 $saved_files_array = [];
 // download the ZIP files if they are not already downloaded
@@ -269,6 +245,14 @@ foreach ($direct_zip_links as $zip_link) {
 
 echo "Done!" . PHP_EOL;
 
+// pretty print list of saved files
+echo PHP_EOL;
+echo "Saved files:\n";
+
+$file_count = count($saved_files_array);
+
 foreach ($saved_files_array as $saved_file) {
-    echo $saved_file . PHP_EOL;
+    echo "\t" . $saved_file . PHP_EOL;
 }
+
+echo "Total files: $file_count" . PHP_EOL;
