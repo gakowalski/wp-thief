@@ -1,6 +1,9 @@
 <?php
 
 $downloads_folder = 'downloads'; // folder where the ZIP files will be downloaded
+$unknowns_folder = 'not-recognized'; // folder for plugins that are not recognized by the script
+$bundles_folder = 'not-recognized/bundles'; // folder for plugin bundles that are not recognized by the script
+$search_window_length = 4000; // number of characters to search for the plugin name in the ZIP file
 
 if (php_sapi_name() == 'cli') {
     echo "Enter URL of the directory listing: ";
@@ -138,6 +141,18 @@ foreach ($direct_zip_links as $zip_link) {
     }
 
     $uncompressed_data = unzip_in_memory($file_contents, function($filename) {
+        $exclude_paths = [
+            'vendor/',
+        ];
+
+        // filter out file pahts that contain entries from array $exclude_paths
+        foreach ($exclude_paths as $exclude_path) {
+            if (strpos($filename, $exclude_path) !== false) {
+                echo "Skipping: " . $filename . PHP_EOL;
+                return false;
+            }
+        }
+
         // filter out all files except PHP files
         echo "Checking: " . $filename . PHP_EOL;
         $result = preg_match('/\.php$/', $filename);
@@ -146,7 +161,9 @@ foreach ($direct_zip_links as $zip_link) {
         }
         return $result;
     });
+
     $main_php_file = null;
+    $main_php_count = 0;
 
     foreach ($uncompressed_data as $file) {
         //echo $file['is_dir'] ? 'DIR: ' : 'FILE: ';
@@ -154,13 +171,14 @@ foreach ($direct_zip_links as $zip_link) {
 
         // if filename ends with php and cointains the string "Plugin Name:" in first 200 characters, save it to $main_php_file
         //if (preg_match('/\.php$/', $file['filename'])) {
-            if (preg_match('/Plugin Name:/', substr($file['content'], 0, 200))) {
+            if (preg_match('/Plugin Name:/', substr($file['content'], 0, $search_window_length))) {
                 $main_php_file = $file['content'];
+                $main_php_count++;
             }
         //}
     }
 
-    if ($main_php_file) {
+    if ($main_php_file && $main_php_count == 1) {
         // extract package name from the main PHP file
         $package = preg_match('/@[pP]ackage\s(.*)/', $main_php_file, $matches) ? trim($matches[1]) : null;
 
@@ -188,5 +206,13 @@ foreach ($direct_zip_links as $zip_link) {
         }
 
         file_put_contents($plugin_folder . '/' . $zip_file_name, $file_contents);
+    } else {
+        if ($main_php_count > 1) {
+            echo "Error, more than one main PHP file in: " . $zip_link . PHP_EOL;
+            file_put_contents($bundles_folder . '/' . $zip_file_name, $file_contents);
+        } else {
+            echo "Error, can't find main PHP file in: " . $zip_link . PHP_EOL;
+            file_put_contents($unknowns_folder . '/' . $zip_file_name, $file_contents);
+        }
     }
 }
