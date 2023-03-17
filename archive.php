@@ -12,7 +12,12 @@ if (php_sapi_name() == 'cli') {
     $url = $_GET['url'];
 }
 
-// if urls lacks the trailing slash, add it
+// if url contains query parameters, remove them
+if (preg_match('/\?/', $url)) {
+    $url = preg_replace('/\?.*/', '', $url);
+}
+
+// if url lacks the trailing slash, add it
 if (!preg_match('/\/$/', $url)) {
     $url .= '/';
 }
@@ -20,8 +25,25 @@ if (!preg_match('/\/$/', $url)) {
 // retrieve base server URL from the URL of the directory listing
 $base_url = preg_replace('/^(https?:\/\/[^\/]+)\/.*/', '$1', $url);
 
+$stream_context = [
+    'http' => [
+        'method' => 'GET', 
+        'header' => 'User-Agent: Mozilla/5.0 (Windows NT 6.1; WOW64; rv:40.0) Gecko/20100101 Firefox/40.0'
+    ],
+    'ssl' => [
+        'cafile' => '/path/to/bundle/cacert.pem',
+        'verify_peer'=> false,
+        'verify_peer_name'=> false,
+    ],
+];
+
 // get the HTML content of the directory listing
-$html = file_get_contents($url);
+$html = file_get_contents($url, false, stream_context_create($stream_context));
+
+if ($html === false) {
+    echo "Error: Could not retrieve the HTML content of the directory listing.\n";
+    exit(1);
+}
 
 // retrieve all links from the HTML content
 $links = array();
@@ -128,12 +150,13 @@ function unzip_in_memory($data, $filter_function = null) {
     return $result;
 }
 
+$saved_files_array = [];
 // download the ZIP files if they are not already downloaded
 echo "Downloading ZIP files:\n";
 
 foreach ($direct_zip_links as $zip_link) {
     $zip_file_name = basename($zip_link);
-    $file_contents = file_get_contents($zip_link);
+    $file_contents = file_get_contents($zip_link, false, stream_context_create($stream_context));
 
     if ($file_contents === false) {
         echo "Error, can't download: " . $zip_link . PHP_EOL;
@@ -187,9 +210,31 @@ foreach ($direct_zip_links as $zip_link) {
 
         // extract plugin name from the main PHP file
         $plugin_name = preg_match('/Plugin Name:\s(.*)/', $main_php_file, $matches) ? trim($matches[1]) : null;
+        $plugin_name = strtr($plugin_name, [
+            '/' => '_',
+            '\\' => '_',
+            ':' => '_',
+            '*' => '_',
+            '?' => '_',
+            '"' => '_',
+            '<' => '_',
+            '>' => '_',
+            '|' => '_',
+        ]);
 
         // extract plugin version from the main PHP file
         $plugin_version = preg_match('/Version: (.*)/', $main_php_file, $matches) ? trim($matches[1]) : null;
+        $plugin_version = strtr($plugin_version, [
+            '/' => '_',
+            '\\' => '_',
+            ':' => '_',
+            '*' => '_',
+            '?' => '_',
+            '"' => '_',
+            '<' => '_',
+            '>' => '_',
+            '|' => '_',
+        ]);
 
         $standarized_name = $text_domain ?? $package ?? $plugin_name;
 
@@ -205,14 +250,25 @@ foreach ($direct_zip_links as $zip_link) {
             continue;
         }
 
-        file_put_contents($plugin_folder . '/' . $zip_file_name, $file_contents);
+        $save_to_filename = $plugin_folder . '/' . $zip_file_name;
     } else {
+        $date_now = date('Y-m-d_H-i-s');
         if ($main_php_count > 1) {
             echo "Error, more than one main PHP file in: " . $zip_link . PHP_EOL;
-            file_put_contents($bundles_folder . '/' . $zip_file_name, $file_contents);
+            $save_to_filename = $bundles_folder . '/' . $date_now . '-' . $zip_file_name;
         } else {
             echo "Error, can't find main PHP file in: " . $zip_link . PHP_EOL;
-            file_put_contents($unknowns_folder . '/' . $zip_file_name, $file_contents);
+            $save_to_filename = $unknowns_folder . '/' . $date_now . '-' . $zip_file_name;
         }
     }
+
+    file_put_contents($save_to_filename, $file_contents);
+    echo "Saved to: " . $save_to_filename . PHP_EOL;
+    $saved_files_array[] = $save_to_filename;
+}
+
+echo "Done!" . PHP_EOL;
+
+foreach ($saved_files_array as $saved_file) {
+    echo $saved_file . PHP_EOL;
 }
