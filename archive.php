@@ -124,6 +124,7 @@ if ($zip_link_type == URL_DIRECT) {
 
 process_direct_zip_links:
 
+require 'utilities.php';
 require 'unzip.php';
 
 $saved_files_array = [];
@@ -180,39 +181,22 @@ foreach ($direct_zip_links as $zip_link) {
     if ($main_php_file && $main_php_count == 1) {
         // extract package name from the main PHP file
         $package = preg_match('/@[pP]ackage\s(.*)/', $main_php_file, $matches) ? trim($matches[1]) : null;
+        $package = sanitize_name($package);
+        
+        $plugin_slug = preg_match('/Plugin Slug:\s(.*)/', $main_php_file, $matches) ? trim($matches[1]) : null;
 
         // extract text domain from the main PHP file
         $text_domain = preg_match('/Text Domain:\s(.*)/', $main_php_file, $matches) ? trim($matches[1]) : null;
 
         // extract plugin name from the main PHP file
         $plugin_name = preg_match('/Plugin Name:\s(.*)/', $main_php_file, $matches) ? trim($matches[1]) : null;
-        $plugin_name = strtr($plugin_name, [
-            '/' => '_',
-            '\\' => '_',
-            ':' => '_',
-            '*' => '_',
-            '?' => '_',
-            '"' => '_',
-            '<' => '_',
-            '>' => '_',
-            '|' => '_',
-        ]);
+        $plugin_name = sanitize_name($plugin_name);
 
         // extract plugin version from the main PHP file
         $plugin_version = preg_match('/Version: (.*)/', $main_php_file, $matches) ? trim($matches[1]) : null;
-        $plugin_version = strtr($plugin_version, [
-            '/' => '_',
-            '\\' => '_',
-            ':' => '_',
-            '*' => '_',
-            '?' => '_',
-            '"' => '_',
-            '<' => '_',
-            '>' => '_',
-            '|' => '_',
-        ]);
+        $plugin_version = sanitize_name($plugin_version);
 
-        $standarized_name = $text_domain ?? $package ?? $plugin_name;
+        $standarized_name = $text_domain ?? $plugin_slug ?? $package ?? $plugin_name;
 
         // create the folder for the plugin
         $plugin_folder = $downloads_folder . '/' . $standarized_name  . '/' . $plugin_version;

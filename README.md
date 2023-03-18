@@ -62,6 +62,26 @@ https://www.example.com/archive.php?url=https://www.example.com/wp-content/plugi
 
 ...but I have never tested it. I implemented it "just in case" but never needed to check it.
 
+## Statistics for... "collectors"
+
+There is also a small utility to get top ten popular plugins from your download folder. Popularity is measured by number of different version you managed to "collect".
+
+```
+$ php stats.php
+
+Top 10 folders:
+        elementor-pro: 27
+        wordpress-seo-premium: 18
+        rocket: 17
+        digits: 13
+        really-simple-ssl-pro: 13
+        wordpress-seo: 12
+        WPBakery Page Builder: 12
+        WPBakeryVisualComposer: 12
+        acf: 11
+        gravityforms: 10
+```
+
 ## Plugins saved but not processed
 
 ZIP files that do not contain properly described WP plugins or that contain MORE than 1 plugin are being put into special folder for not recognized plugins and its subfolder for plugin bundles. At this point this script does not deal with plugin bundles.
@@ -69,4 +89,7 @@ ZIP files that do not contain properly described WP plugins or that contain MORE
 ## Ideas for script improvement
 
 1. Unpack plugin bundles.
+1. Processing unpacked plugins.
 1. Support for TAR.GZ, GZIP and TAR archives as some people put plugins (especially plugin bundles) in those file formats.
+1. Scan for malware.
+1. Scan /wp-content/uploads/ subfolders for 'pro' and 'premium' ZIPs
